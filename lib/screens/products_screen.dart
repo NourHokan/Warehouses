@@ -5,8 +5,9 @@ import '../models/medicine.dart';
 import '../providers/data_provider.dart';
 import '../providers/user_provider.dart';
 import '../theme/app_colors.dart';
-import 'package:url_launcher/url_launcher.dart'; // تأكد من إضافة هذه الحزمة في pubspec.yaml
-import 'dart:io' show Platform;
+import 'package:url_launcher/url_launcher.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import '../screens/auth_gate.dart';
 
 class ProductsScreen extends StatefulWidget {
   final Warehouse warehouse;
@@ -99,9 +100,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     description: descriptionController.text,
                     price: double.tryParse(priceController.text) ?? 0,
                     stock: int.tryParse(stockController.text) ?? 0,
-                    companyId: '',
+                    companyId: '', // Assuming companyId is not set here
                     warehouseId: widget.warehouse.id,
-                    type: MedicineType.local,
+                    type: MedicineType.local, // Assuming type is local
                     whatsappNumber: whatsappController.text,
                   );
                   dataProvider.addMedicine(newMedicine);
@@ -176,45 +177,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
     );
   }
 
-  // دالة لفتح واتساب
-  Future<void> _launchWhatsApp(String whatsappNumber, {String? message}) async {
-    String cleanNumber = whatsappNumber.replaceAll(RegExp(r'[^0-9+]'), '');
-    if (cleanNumber.startsWith('+')) {
-      cleanNumber = cleanNumber.substring(1);
-    }
-    final waMeUrl = message == null
-        ? 'https://wa.me/$cleanNumber'
-        : 'https://wa.me/$cleanNumber?text=${Uri.encodeComponent(message)}';
-
-    debugPrint('Attempting to launch WhatsApp with URL: $waMeUrl');
-    debugPrint('Cleaned WhatsApp Number: $cleanNumber');
-
-    try {
-      if (await canLaunchUrl(Uri.parse(waMeUrl))) {
-        await launchUrl(Uri.parse(waMeUrl), mode: LaunchMode.externalApplication);
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('لا يمكن فتح واتساب. تأكد من وجود تطبيق واتساب أو جرب من متصفح آخر.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('حدث خطأ أثناء محاولة فتح واتساب: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      debugPrint('Error launching WhatsApp: $e');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context);
@@ -247,11 +209,35 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 setState(() {
                   _searchQuery = result.arabicName;
                 });
+              } else {
+                // If search is dismissed without selection, clear the query
+                setState(() {
+                  _searchQuery = '';
+                });
               }
             },
           ),
+          if (userProvider.currentUser != null)
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'تسجيل الخروج',
+              onPressed: () {
+                Provider.of<UserProvider>(context, listen: false).logout();
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const AuthGate()),
+                  (route) => false,
+                );
+              },
+            ),
         ],
       ),
+      floatingActionButton: canManageProducts
+          ? FloatingActionButton(
+              onPressed: _showAddProductDialog,
+              backgroundColor: AppColors.primaryGreen,
+              child: const Icon(Icons.add, color: Colors.white),
+            )
+          : null,
       body: StreamBuilder<List<Medicine>>(
         stream: dataProvider.medicinesStreamByWarehouse(widget.warehouse.id),
         builder: (context, snapshot) {
@@ -263,7 +249,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
             return Center(child: Text('خطأ في تحميل المنتجات: ${snapshot.error}'));
           }
 
-          // تم تعديل هذا الجزء لتبسيط منطق عرض "لا توجد بيانات" / "لا توجد نتائج بحث"
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(
               child: Text(
@@ -280,183 +265,382 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   m.arabicName.toLowerCase().contains(_searchQuery.toLowerCase()))
               .toList();
 
-          if (filteredMedicines.isEmpty) {
-            // إذا كانت القائمة المفلترة فارغة، فهذا يعني أن البحث لم يسفر عن نتائج
-            // (لأن الحالة التي تكون فيها `allMedicines` فارغة تمت معالجتها أعلاه)
+          if (_searchQuery.isNotEmpty && filteredMedicines.isEmpty) {
             return Center(
               child: Text(
                 'لا توجد نتائج للبحث عن "$_searchQuery"',
                 style: const TextStyle(fontSize: 18, color: AppColors.textSecondary),
               ),
             );
+          } else if (_searchQuery.isEmpty && filteredMedicines.isEmpty) {
+             return const Center(
+              child: Text(
+                'لا توجد منتجات بعد لهذا المستودع.',
+                style: TextStyle(fontSize: 18, color: AppColors.textSecondary),
+              ),
+            );
           }
+
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: filteredMedicines.length,
             itemBuilder: (context, index) {
               final medicine = filteredMedicines[index];
-              return Card(
-                elevation: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 60,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryGreen.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        child: const Icon(
-                          Icons.medical_services,
-                          color: AppColors.primaryGreen,
-                          size: 30,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              medicine.arabicName,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              medicine.description,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: AppColors.textSecondary,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'السعر: ${medicine.price} دولار',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'الكمية المتوفرة: ${medicine.stock}',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8), // مسافة صغيرة قبل الأزرار
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          ElevatedButton.icon(
-                            onPressed: () async {
-                              final whatsappNumber = medicine.whatsappNumber?.isNotEmpty == true
-                                ? medicine.whatsappNumber!
-                                : widget.warehouse.whatsappNumber;
-                              if (whatsappNumber.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('لا يوجد رقم واتساب لهذا المنتج أو المستودع'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                                return;
-                              }
-                              String cleanNumber = whatsappNumber.replaceAll(RegExp(r'[^0-9+]'), '');
-                              if (cleanNumber.startsWith('+')) {
-                                cleanNumber = cleanNumber.substring(1);
-                              }
-                              final waMeUrl = 'https://wa.me/$cleanNumber?text=${Uri.encodeComponent('مرحباً، أود طلب المنتج: ${medicine.arabicName} المتوفر في مستودع ${widget.warehouse.name}')}';
-                              try {
-                                await launchUrl(Uri.parse(waMeUrl), mode: LaunchMode.platformDefault);
-                              } catch (e) {
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('حدث خطأ أثناء محاولة فتح واتساب: $e'),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                            icon: const Icon(Icons.shopping_cart, size: 18),
-                            label: const Text('طلب'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primaryGreen,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            ),
-                          ),
-                          if (canManageProducts) // إذا كان المستخدم لديه صلاحية الإدارة
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  final isNarrow = constraints.maxWidth < 400;
+                  return Card(
+                    elevation: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: isNarrow
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                IconButton(
-                                  icon: const Icon(Icons.edit, color: AppColors.primaryGreen),
-                                  tooltip: 'تعديل المنتج',
-                                  onPressed: () => _showAddProductDialog(medicine: medicine),
+                                Center(
+                                  child: Container(
+                                    width: 60,
+                                    height: 60,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primaryGreen.withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: const Icon(
+                                      Icons.medical_services,
+                                      color: AppColors.primaryGreen,
+                                      size: 34,
+                                    ),
+                                  ),
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red),
-                                  tooltip: 'حذف المنتج',
-                                  onPressed: () => _deleteProduct(medicine.id),
+                                const SizedBox(height: 12),
+                                Text(
+                                  medicine.arabicName,
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                  textDirection: TextDirection.rtl,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  medicine.description,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  textDirection: TextDirection.rtl,
+                                ),
+                                const SizedBox(height: 8),
+                                
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green[50],
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.attach_money, size: 16, color: AppColors.primaryGreen),
+                                          const SizedBox(width: 2),
+                                          Text(
+                                            '${medicine.price}',
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.primaryGreen,
+                                            ),
+                                            textDirection: TextDirection.rtl,
+                                          ),
+                                          const Text(' دولار', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue[50],
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.inventory_2, size: 16, color: Colors.blue),
+                                          const SizedBox(width: 2),
+                                          Text(
+                                            '${medicine.stock}',
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.blue,
+                                            ),
+                                            textDirection: TextDirection.rtl,
+                                          ),
+                                          const Text(' متوفر', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    PopupMenuButton<String>(
+                                      icon: const Icon(Icons.more_vert, size: 22),
+                                      onSelected: (value) {
+                                        if (value == 'edit') {
+                                          _showAddProductDialog(medicine: medicine);
+                                        } else if (value == 'delete') {
+                                          _deleteProduct(medicine.id);
+                                        }
+                                      },
+                                      itemBuilder: (context) => [
+                                        const PopupMenuItem(
+                                          value: 'edit',
+                                          child: Text('تعديل'),
+                                        ),
+                                        const PopupMenuItem(
+                                          value: 'delete',
+                                          child: Text('حذف', style: TextStyle(color: Colors.red)),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(width: 2),
+                                    IconButton(
+                                      icon: const FaIcon(FontAwesomeIcons.whatsapp, color: Colors.green, size: 20),
+                                      tooltip: 'طلب عبر واتساب',
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      onPressed: () async {
+                                        final whatsappNumber = medicine.whatsappNumber.isNotEmpty
+                                            ? medicine.whatsappNumber
+                                            : widget.warehouse.whatsappNumber;
+                                        if (whatsappNumber.isEmpty) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('لا يوجد رقم واتساب لهذا المنتج أو المستودع'),
+                                              backgroundColor: Colors.red,
+                                            ),
+                                          );
+                                          return;
+                                        }
+                                        String cleanNumber = whatsappNumber.replaceAll(RegExp(r'[^0-9+]'), '');
+                                        if (cleanNumber.startsWith('+')) {
+                                          cleanNumber = cleanNumber.substring(1);
+                                        }
+                                        final waMeUrl = 'https://wa.me/$cleanNumber?text=${Uri.encodeComponent('مرحباً، أود طلب المنتج: ${medicine.arabicName} المتوفر في مستودع ${widget.warehouse.name}')}';
+                                        try {
+                                          await launchUrl(Uri.parse(waMeUrl), mode: LaunchMode.platformDefault);
+                                        } catch (e) {
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text('حدث خطأ أثناء محاولة فتح واتساب: $e'),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            )
+                          : Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 60,
+                                  height: 60,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryGreen.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: const Icon(
+                                    Icons.medical_services,
+                                    color: AppColors.primaryGreen,
+                                    size: 34,
+                                  ),
+                                ),
+                                const SizedBox(width: 18),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        medicine.arabicName,
+                                        style: const TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                        textDirection: TextDirection.rtl,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        medicine.description,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        textDirection: TextDirection.rtl,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: Colors.green[50],
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                const Icon(Icons.attach_money, size: 16, color: AppColors.primaryGreen),
+                                                const SizedBox(width: 2),
+                                                Text(
+                                                  '${medicine.price}',
+                                                  style: const TextStyle(
+                                                    fontSize: 15,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: AppColors.primaryGreen,
+                                                  ),
+                                                  textDirection: TextDirection.rtl,
+                                                ),
+                                                const Text(' دولار', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: Colors.blue[50],
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                const Icon(Icons.inventory_2, size: 16, color: Colors.blue),
+                                                const SizedBox(width: 2),
+                                                Text(
+                                                  '${medicine.stock}',
+                                                  style: const TextStyle(
+                                                    fontSize: 15,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.blue,
+                                                  ),
+                                                  textDirection: TextDirection.rtl,
+                                                ),
+                                                const Text(' متوفر', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    ElevatedButton.icon(
+                                      onPressed: () async {
+                                        final whatsappNumber = medicine.whatsappNumber.isNotEmpty
+                                            ? medicine.whatsappNumber
+                                            : widget.warehouse.whatsappNumber;
+                                        if (whatsappNumber.isEmpty) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('لا يوجد رقم واتساب لهذا المنتج أو المستودع'),
+                                              backgroundColor: Colors.red,
+                                            ),
+                                          );
+                                          return;
+                                        }
+                                        String cleanNumber = whatsappNumber.replaceAll(RegExp(r'[^0-9+]'), '');
+                                        if (cleanNumber.startsWith('+')) {
+                                          cleanNumber = cleanNumber.substring(1);
+                                        }
+                                        final waMeUrl = 'https://wa.me/' + cleanNumber + '?text=' + Uri.encodeComponent('مرحباً، أود طلب المنتج: ${medicine.arabicName} المتوفر في مستودع ${widget.warehouse.name}');
+                                        try {
+                                          await launchUrl(Uri.parse(waMeUrl), mode: LaunchMode.platformDefault);
+                                        } catch (e) {
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text('حدث خطأ أثناء محاولة فتح واتساب: $e'),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      },
+                                      icon: const FaIcon(FontAwesomeIcons.whatsapp, color: Colors.white, size: 18),
+                                      label: const Text('طلب عبر واتساب', style: TextStyle(fontWeight: FontWeight.bold)),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green[700],
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(16),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                        textStyle: const TextStyle(fontSize: 15),
+                                      ),
+                                    ),
+                                    if (canManageProducts)
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            icon: const Icon(Icons.edit, color: AppColors.primaryGreen, size: 20),
+                                            tooltip: 'تعديل المنتج',
+                                            onPressed: () => _showAddProductDialog(medicine: medicine),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                            tooltip: 'حذف المنتج',
+                                            onPressed: () => _deleteProduct(medicine.id),
+                                          ),
+                                        ],
+                                      ),
+                                  ],
                                 ),
                               ],
                             ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+                    ),
+                  );
+                },
               );
             },
           );
         },
       ),
-      floatingActionButton: canManageProducts
-          ? FloatingActionButton(
-              onPressed: () => _showAddProductDialog(),
-              backgroundColor: AppColors.primaryGreen,
-              child: const Icon(Icons.add, color: Colors.white), // تحديد لون الأيقونة للتباين
-            )
-          : null,
     );
   }
 }
 
-// MedicineSearchDelegate لم يتم تغييره لأنه لم يكن به مشاكل واضحة من هذا الكود
-// وهو مصمم لآلية بحث مختلفة (اختيار عنصر من القائمة بدلاً من فلترة القائمة الحالية)
-// يفضل استخدام SearchDelegate مع showSearch بدلاً من AlertDialog للبحث المتقدم في المستقبل (كما هو مذكور في التعليق الأصلي)
+// --- MedicineSearchDelegate Implementation ---
 class MedicineSearchDelegate extends SearchDelegate<Medicine?> {
-  final List<Medicine> medicines; // يفترض أن يتم تمرير قائمة الأدوية هنا
-  // أو أن يقوم Delegate بجلبها بنفسه إذا كان سيستخدم بشكل مستقل
+  final List<Medicine> medicines;
 
   MedicineSearchDelegate(this.medicines);
 
   @override
-  String get searchFieldLabel => 'ابحث عن اسم الدواء...';
-
+  String get searchFieldLabel => 'ابحث عن دواء';
 
   @override
   List<Widget>? buildActions(BuildContext context) {
@@ -465,7 +649,7 @@ class MedicineSearchDelegate extends SearchDelegate<Medicine?> {
         icon: const Icon(Icons.clear),
         onPressed: () {
           query = '';
-          showSuggestions(context); // عرض الاقتراحات بعد مسح النص
+          showSuggestions(context);
         },
       ),
     ];
@@ -475,20 +659,25 @@ class MedicineSearchDelegate extends SearchDelegate<Medicine?> {
   Widget? buildLeading(BuildContext context) {
     return IconButton(
       icon: const Icon(Icons.arrow_back),
-      onPressed: () => close(context, null), // إغلاق البحث بدون نتيجة
+      onPressed: () {
+        close(context, null);
+      },
     );
   }
 
   @override
   Widget buildResults(BuildContext context) {
-    // هذا الجزء يُبنى عندما يقوم المستخدم بالضغط على "بحث" في لوحة المفاتيح
-    final results = medicines.where((m) =>
-      m.name.toLowerCase().contains(query.toLowerCase()) ||
-      m.arabicName.toLowerCase().contains(query.toLowerCase())
-    ).toList();
+    final results = medicines
+        .where((medicine) =>
+            medicine.arabicName.toLowerCase().contains(query.toLowerCase()) ||
+            medicine.name.toLowerCase().contains(query.toLowerCase()))
+        .toList();
 
     if (results.isEmpty) {
-      return const Center(child: Text('لا توجد نتائج مطابقة.'));
+      return Center(
+        child: Text('لا توجد نتائج للبحث عن "$query"',
+            style: const TextStyle(fontSize: 18, color: AppColors.textSecondary)),
+      );
     }
 
     return ListView.builder(
@@ -497,8 +686,10 @@ class MedicineSearchDelegate extends SearchDelegate<Medicine?> {
         final medicine = results[index];
         return ListTile(
           title: Text(medicine.arabicName),
-          subtitle: Text(medicine.name),
-          onTap: () => close(context, medicine), // إغلاق البحث مع إعادة الدواء المختار
+          subtitle: Text(medicine.description),
+          onTap: () {
+            close(context, medicine);
+          },
         );
       },
     );
@@ -506,31 +697,24 @@ class MedicineSearchDelegate extends SearchDelegate<Medicine?> {
 
   @override
   Widget buildSuggestions(BuildContext context) {
-    // هذا الجزء يُبنى أثناء كتابة المستخدم في حقل البحث
-    final suggestions = medicines.where((m) =>
-      m.name.toLowerCase().contains(query.toLowerCase()) ||
-      m.arabicName.toLowerCase().contains(query.toLowerCase())
-    ).toList();
-
-    if (query.isEmpty) {
-        // يمكن عرض قائمة مبدئية أو رسالة توجيهية هنا
-        return const Center(child: Text('ابدأ الكتابة للبحث عن دواء.'));
-    }
-    if (suggestions.isEmpty) {
-      return const Center(child: Text('لا توجد اقتراحات مطابقة.'));
-    }
+    final suggestionList = query.isEmpty
+        ? []
+        : medicines
+            .where((medicine) =>
+                medicine.arabicName.toLowerCase().contains(query.toLowerCase()) ||
+                medicine.name.toLowerCase().contains(query.toLowerCase()))
+            .toList();
 
     return ListView.builder(
-      itemCount: suggestions.length,
+      itemCount: suggestionList.length,
       itemBuilder: (context, index) {
-        final medicine = suggestions[index];
+        final medicine = suggestionList[index];
         return ListTile(
           title: Text(medicine.arabicName),
-          subtitle: Text(medicine.name),
+          subtitle: Text(medicine.description),
           onTap: () {
-            query = medicine.arabicName; // يمكن وضع الاسم في حقل البحث
-            showResults(context); // عرض النتائج مباشرة أو
-            // close(context, medicine); // إغلاق البحث مع إعادة الدواء المختار
+            query = medicine.arabicName;
+            showResults(context);
           },
         );
       },

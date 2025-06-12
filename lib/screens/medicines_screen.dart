@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
-import '../models/medicine.dart'; // استيراد نموذج الدواء الرئيسي
-import '../models/warehouse.dart'; // إضافة استيراد نموذج المستودع
-import '../providers/data_provider.dart'; // استيراد مزود البيانات
+import 'package:provider/provider.dart';
+import '../models/medicine.dart'; // تأكد من أن هذا المسار صحيح
+import '../models/warehouse.dart'; // تأكد من أن هذا المسار صحيح
+import '../providers/data_provider.dart'; // تأكد من أن هذا المسار صحيح
 
 class MedicinesScreen extends StatefulWidget {
   final String userEmail;
   final String warehouseEmail;
   final List<Medicine> medicines;
-  final Warehouse warehouse; // إضافة المستودع كمعامل
+  final Warehouse warehouse;
 
   const MedicinesScreen({
     super.key,
     required this.userEmail,
     required this.warehouseEmail,
     required this.medicines,
-    required this.warehouse, // إضافة المستودع كمعامل مطلوب
+    required this.warehouse,
   });
 
   @override
@@ -39,7 +39,6 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
   @override
   Widget build(BuildContext context) {
     bool isOwner = widget.userEmail == widget.warehouseEmail;
-
     List<String> types = ['الكل', 'وطني', 'أجنبي', 'إكسسوار'];
 
     List<Medicine> filteredMedicines = selectedType == 'الكل'
@@ -54,14 +53,29 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
           'المنتجات المتوفرة',
           style: TextStyle(color: Colors.white),
         ),
-        backgroundColor: Colors.green[700],
+        backgroundColor: Colors.green.shade700,
+        actions: [
+          if (isOwner)
+            IconButton(
+              icon: const Icon(Icons.add, color: Colors.white),
+              tooltip: 'إضافة دواء جديد',
+              onPressed: () => _showAddMedicineDialog(context),
+            ),
+        ],
       ),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: DropdownButton<String>(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: DropdownButtonFormField<String>(
               value: selectedType,
+              isExpanded: true,
+              decoration: InputDecoration(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12.0),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+              ),
               onChanged: (value) {
                 if (value != null) {
                   setState(() {
@@ -72,112 +86,102 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
               items: types.map((type) {
                 return DropdownMenuItem<String>(
                   value: type,
-                  child: Text(type),
+                  child: Text(type, textAlign: TextAlign.center),
                 );
               }).toList(),
             ),
           ),
           Expanded(
             child: ListView.builder(
+              padding: const EdgeInsets.all(8),
               itemCount: filteredMedicines.length,
               itemBuilder: (context, index) {
-                final medicine = filteredMedicines[index];
-                final whatsappNumber = widget.warehouse.whatsappNumber;
+                final medicine = filteredMedicines.elementAt(index);
 
                 return Card(
-                  margin:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  elevation: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 5),
+                  elevation: 2,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  child: ListTile(
-                    title: Container(
-                      width: double.infinity,
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: AlignmentDirectional.centerStart,
-                        child: Text(
-                          medicine.arabicName,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Row(
+                      // بما أن الواجهة عربية (RTL)، العنصر الأول في الـ Row يظهر يميناً
+                      // والعنصر الأخير يظهر يساراً.
                       children: [
-                        Text(
-                          medicine.description,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 14),
+                        // -- الجزء الأيمن: تفاصيل الدواء (مرن ويأخذ كل المساحة المتاحة) --
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                medicine.arabicName,
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                medicine.description,
+                                textAlign: TextAlign.right,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'السعر: \$${medicine.price.toStringAsFixed(2)}',
+                                textAlign: TextAlign.right,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.green.shade800,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        Text(
-                          'السعر: \$${medicine.price.toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.green[700],
-                            fontWeight: FontWeight.bold,
+
+                        const SizedBox(width: 10), // مسافة فاصلة
+
+                        // --- الجزء الأيسر: الأزرار (في عمود ذو عرض ثابت ومحدد) ---
+                        // هذا هو الجزء الذي يحدد ترتيب الأزرار وحجم أيقونة الواتساب.
+                        SizedBox(
+                          width: 30, // تحديد عرض ثابت لضمان أن الأزرار لا تخرج عن نطاقها
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (isOwner) ...[
+                                // إذا كان المستخدم مالكًا، أظهر زري التعديل والحذف
+                                IconButton(
+                                  icon: const Icon(Icons.edit, color: Colors.blueAccent),
+                                  onPressed: () { /* Edit logic */ },
+                                  tooltip: 'تعديل',
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete, color: Colors.redAccent),
+                                  onPressed: () { /* Delete logic */ },
+                                  tooltip: 'حذف',
+                                ),
+                              ] else ...[
+                                IconButton(
+                                  icon: const Icon(Icons.add_shopping_cart, color: Colors.blue, size: 20),
+                                  onPressed: () => _addToCart(medicine),
+                                  tooltip: 'إضافة إلى السلة',
+                                ),
+                                // تمت إزالة أيقونة الواتساب نهائياً بناءً على طلبك
+                              ]
+                            ],
                           ),
                         ),
                       ],
                     ),
-                    isThreeLine: false,
-                    trailing: isOwner
-                        ? IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.blue),
-                            onPressed: () {
-                              // صفحة تعديل الدواء هنا
-                            },
-                          )
-                        : PopupMenuButton<String>(
-                            onSelected: (value) {
-                              if (value == 'whatsapp') {
-                                if (whatsappNumber != null &&
-                                    whatsappNumber.isNotEmpty) {
-                                  _launchWhatsApp(whatsappNumber,
-                                      message:
-                                          "مرحباً، أود الاستفسار عن المنتج: ${medicine.arabicName}");
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content: Text(
-                                            "لا يوجد رقم واتساب متاح للمستودع")),
-                                  );
-                                }
-                              } else if (value == 'cart') {
-                                _addToCart(medicine);
-                              }
-                            },
-                            itemBuilder: (context) => [
-                              const PopupMenuItem(
-                                value: 'cart',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.shopping_cart,
-                                        color: Colors.green),
-                                    SizedBox(width: 8),
-                                    Text('إضافة إلى السلة'),
-                                  ],
-                                ),
-                              ),
-                              const PopupMenuItem(
-                                value: 'whatsapp',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.chat, color: Colors.green),
-                                    SizedBox(width: 8),
-                                    Text('تواصل عبر واتساب'),
-                                  ],
-                                ),
-                              ),
-                            ],
-                            icon: const Icon(Icons.more_vert),
-                          ),
                   ),
                 );
               },
@@ -185,45 +189,141 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
           ),
         ],
       ),
+      floatingActionButton: isOwner
+          ? FloatingActionButton(
+              onPressed: () {
+                _showAddMedicineDialog(context);
+              },
+              backgroundColor: Colors.green.shade700,
+              child: const Icon(Icons.add, color: Colors.white),
+            )
+          : null,
     );
   }
 
-  void _launchWhatsApp(String whatsappNumber, {String? message}) async {
-    String cleanNumber = whatsappNumber.replaceAll(RegExp(r'[^0-9+]'), '');
-    String waMeNumber =
-        cleanNumber.startsWith('+') ? cleanNumber.substring(1) : cleanNumber;
-    final waMeUrl = message == null
-        ? 'https://wa.me/$waMeNumber'
-        : 'https://wa.me/$waMeNumber?text=${Uri.encodeComponent(message)}';
-    try {
-      if (await canLaunchUrl(Uri.parse(waMeUrl))) {
-        await launchUrl(Uri.parse(waMeUrl),
-            mode: LaunchMode.externalApplication);
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                  'لا يمكن فتح واتساب عبر المتصفح. تأكد من وجود اتصال بالإنترنت.'),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('حدث خطأ أثناء محاولة فتح واتساب.'),
-          ),
-        );
-      }
-    }
+  void _addToCart(Medicine medicine) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content: Text("تمت إضافة ${medicine.arabicName} إلى السلة!"),
+          backgroundColor: Colors.blue.shade700),
+    );
   }
 
-  void _addToCart(Medicine medicine) {
-    // تنفيذ وهمي لإضافة المنتج إلى السلة
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("تمت إضافة ${medicine.arabicName} إلى السلة!")),
+  void _showAddMedicineDialog(BuildContext context) {
+    final formKey = GlobalKey<FormState>();
+    final nameController = TextEditingController();
+    final arabicNameController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final priceController = TextEditingController();
+    final stockController = TextEditingController();
+    MedicineType selectedMedicineType = MedicineType.local;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('إضافة دواء جديد'),
+        content: SingleChildScrollView(
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: arabicNameController,
+                  decoration: const InputDecoration(labelText: 'الاسم بالعربية'),
+                  validator: (v) => v == null || v.isEmpty ? 'الحقل مطلوب' : null,
+                ),
+                TextFormField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'الاسم بالإنجليزية'),
+                  validator: (v) => v == null || v.isEmpty ? 'الحقل مطلوب' : null,
+                ),
+                TextFormField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(labelText: 'الوصف'),
+                  validator: (v) => v == null || v.isEmpty ? 'الحقل مطلوب' : null,
+                ),
+                TextFormField(
+                  controller: priceController,
+                  decoration: const InputDecoration(labelText: 'السعر بالدولار'),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return 'الحقل مطلوب';
+                    if (double.tryParse(v) == null) return 'أدخل رقمًا صحيحًا'; // تم إصلاح هذا السطر ليكون كاملاً
+                    return null;
+                  },
+                ),
+                TextFormField(
+                  controller: stockController,
+                  decoration: const InputDecoration(labelText: 'الكمية'),
+                  keyboardType: TextInputType.number,
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return 'الحقل مطلوب';
+                    if (int.tryParse(v) == null) return 'أدخل رقمًا صحيحًا';
+                    return null;
+                  },
+                ),
+                DropdownButtonFormField<MedicineType>(
+                  value: selectedMedicineType,
+                  decoration: const InputDecoration(labelText: 'النوع'),
+                  items: MedicineType.values.map((type) {
+                    return DropdownMenuItem(
+                      value: type,
+                      child: Text(_getMedicineType(type)),
+                    );
+                  }).toList(),
+                  onChanged: (type) {
+                    if (type != null) selectedMedicineType = type;
+                  },
+                  validator: (v) => v == null ? 'اختر نوعًا' : null,
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (formKey.currentState!.validate()) {
+                final newMedicine = Medicine(
+                  id: DateTime.now().millisecondsSinceEpoch.toString(),
+                  name: nameController.text,
+                  arabicName: arabicNameController.text,
+                  description: descriptionController.text,
+                  price: double.parse(priceController.text),
+                  stock: int.parse(stockController.text),
+                  companyId: '',
+                  warehouseId: widget.warehouse.id,
+                  type: selectedMedicineType,
+                  whatsappNumber: widget.warehouse.whatsappNumber,
+                );
+
+                final dataProvider = Provider.of<DataProvider>(context, listen: false);
+                await dataProvider.addMedicine(newMedicine);
+
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('تمت إضافة الدواء بنجاح'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green.shade700,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('إضافة'),
+          ),
+        ],
+      ),
     );
   }
 }

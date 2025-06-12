@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 import '../providers/user_provider.dart';
 import 'login_screen.dart';
-import 'warehouses_list_screen.dart';
+import 'welcome_screen.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -54,6 +54,6 @@ class _AuthGateState extends State<AuthGate> {
     if (userEmail == null) {
       return LoginScreen(onLoginSuccess: _onLoginSuccess);
     }
-    return const WarehousesListScreen();
+    return const WelcomeScreen();
   }
 }

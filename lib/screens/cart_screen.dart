@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../models/cart.dart';
 
 import '../providers/data_provider.dart';
@@ -276,9 +277,9 @@ $itemsList
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                            'السعر: \$${_formatPrice(item.medicine.price)}',
+                                          'السعر: ${_formatPrice(item.medicine.price)} ل.س',
                                           style: const TextStyle(
-                                            fontSize: 14,
+                                            fontSize: 13, // أصغر من السابق
                                             color: AppColors.textSecondary,
                                           ),
                                         ),
@@ -287,7 +288,8 @@ $itemsList
                                           children: [
                                             IconButton(
                                               icon: const Icon(
-                                                  Icons.remove_circle_outline),
+                                                  Icons.remove_circle_outline,
+                                                  size: 18),
                                               onPressed: () {
                                                 _updateCartItemQuantity(
                                                   userProvider.currentUser!.id,
@@ -299,13 +301,14 @@ $itemsList
                                             Text(
                                               '${item.quantity}',
                                               style: const TextStyle(
-                                                fontSize: 16,
+                                                fontSize: 15,
                                                 fontWeight: FontWeight.bold,
                                               ),
                                             ),
                                             IconButton(
                                               icon: const Icon(
-                                                  Icons.add_circle_outline),
+                                                  Icons.add_circle_outline,
+                                                  size: 18),
                                               onPressed: () {
                                                 _updateCartItemQuantity(
                                                   userProvider.currentUser!.id,
@@ -319,17 +322,69 @@ $itemsList
                                       ],
                                     ),
                                   ),
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.delete,
-                                      color: Colors.red,
-                                    ),
-                                    onPressed: () => _showDeleteConfirmation(
-                                      context,
-                                      item.medicine.arabicName,
-                                      userProvider.currentUser!.id,
-                                      item.medicine.id,
-                                    ),
+                                  // قائمة ثلاث نقاط مع حذف وتعديل وزر واتساب صغير
+                                  Column(
+                                    children: [
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          PopupMenuButton<String>(
+                                            icon: const Icon(Icons.more_vert,
+                                                size: 22),
+                                            onSelected: (value) {
+                                              if (value == 'delete') {
+                                                _showDeleteConfirmation(
+                                                  context,
+                                                  item.medicine.arabicName,
+                                                  userProvider.currentUser!.id,
+                                                  item.medicine.id,
+                                                );
+                                              } else if (value == 'edit') {
+                                                // منطق التعديل (يمكنك إضافة نافذة تعديل)
+                                              }
+                                            },
+                                            itemBuilder: (context) => [
+                                              const PopupMenuItem(
+                                                value: 'edit',
+                                                child: Text('تعديل'),
+                                              ),
+                                              const PopupMenuItem(
+                                                value: 'delete',
+                                                child: Text('حذف',
+                                                    style: TextStyle(
+                                                        color: Colors.red)),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(width: 2),
+                                          IconButton(
+                                            icon: const FaIcon(FontAwesomeIcons.whatsapp, color: Colors.green, size: 20),
+                                            tooltip: 'طلب عبر واتساب',
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(),
+                                            onPressed: () async {
+                                              final dataProvider =
+                                                  Provider.of<DataProvider>(
+                                                      context,
+                                                      listen: false);
+                                              final warehouse = dataProvider
+                                                  .warehouses
+                                                  .firstWhere(
+                                                (w) => w.id == item.medicine.warehouseId,
+                                                orElse: () => throw 'لم يتم العثور على المستودع',
+                                              );
+                                              final message = _formatWhatsAppMessage(
+                                                  [item],
+                                                  item.medicine.price *
+                                                      item.quantity);
+                                              await _launchWhatsApp(
+                                                  warehouse.whatsappNumber,
+                                                  message);
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
@@ -358,14 +413,14 @@ $itemsList
                               const Text(
                                 'المجموع:',
                                 style: TextStyle(
-                                  fontSize: 18,
+                                  fontSize: 15, // أصغر من السابق
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                                Text(
-                                '\$${_formatPrice(cart.totalPrice)}',
-                                style: const TextStyle(
-                                  fontSize: 18,
+                              Text(
+                                '${_formatPrice(cart.totalPrice)} ل.س',
+                                style: TextStyle(
+                                  fontSize: 15, // أصغر من السابق
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.primaryGreen,
                                 ),

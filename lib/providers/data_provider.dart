@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:io';
 import '../models/cart.dart';
 import '../models/medicine.dart';
 import '../models/warehouse.dart';
@@ -7,7 +8,7 @@ import '../models/governorate.dart';
 import '../models/pharmaceutical_company.dart';
 
 class DataProvider with ChangeNotifier {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final supabase = Supabase.instance.client;
 
   final List<Governorate> _governorates = [
     Governorate(
@@ -47,86 +48,76 @@ class DataProvider with ChangeNotifier {
   List<PharmaceuticalCompany> get companies => _companies;
   List<Medicine> get medicines => _medicines;
 
-  // --- Firestore: مزامنة المستودعات ---
+  // --- Supabase: مزامنة المستودعات ---
   Stream<List<Warehouse>> get warehousesStream {
-    return _firestore.collection('warehouses').snapshots().map((snapshot) {
-      return snapshot.docs
-          .map((doc) => Warehouse.fromJson(doc.data()))
-          .toList();
-    });
+    return supabase
+        .from('warehouses')
+        .stream(primaryKey: ['id'])
+        .map((maps) => maps.map((data) => Warehouse.fromJson(data)).toList());
   }
 
-  // Deprecated: use warehousesStream for real-time updates
   Future<void> fetchWarehouses() async {
-    final snapshot = await _firestore.collection('warehouses').get();
-    _warehouses =
-        snapshot.docs.map((doc) => Warehouse.fromJson(doc.data())).toList();
+    final data = await supabase.from('warehouses').select();
+    _warehouses = (data as List).map((e) => Warehouse.fromJson(e)).toList();
     notifyListeners();
   }
 
   Future<void> addWarehouse(Warehouse warehouse) async {
-    await _firestore
-        .collection('warehouses')
-        .doc(warehouse.id)
-        .set(warehouse.toJson());
-    // No need to call fetchWarehouses();
+    final response = await supabase.from('warehouses').insert(warehouse.toJson()).select();
+    print('Supabase addWarehouse response:');
+    print(response);
   }
 
   Future<void> updateWarehouse(Warehouse warehouse) async {
-    await _firestore
-        .collection('warehouses')
-        .doc(warehouse.id)
-        .update(warehouse.toJson());
-    // No need to call fetchWarehouses();
+    await supabase.from('warehouses').update(warehouse.toJson()).eq('id', warehouse.id);
   }
 
   Future<void> deleteWarehouse(String id) async {
-    await _firestore.collection('warehouses').doc(id).delete();
-    // No need to call fetchWarehouses();
+    await supabase.from('warehouses').delete().eq('id', id);
   }
 
-  // --- Firestore: مزامنة الأدوية ---
+  // --- Supabase: مزامنة الأدوية ---
   Future<void> fetchMedicines() async {
-    final snapshot = await _firestore.collection('medicines').get();
-    _medicines =
-        snapshot.docs.map((doc) => Medicine.fromJson(doc.data())).toList();
+    final data = await supabase.from('medicines').select();
+    _medicines = (data as List).map((e) => Medicine.fromJson(e)).toList();
     notifyListeners();
   }
 
   Future<void> addMedicine(Medicine medicine) async {
-    await _firestore
-        .collection('medicines')
-        .doc(medicine.id)
-        .set(medicine.toJson());
+    await supabase.from('medicines').insert(medicine.toJson());
     await fetchMedicines();
   }
 
   Future<void> updateMedicine(Medicine medicine) async {
-    await _firestore
-        .collection('medicines')
-        .doc(medicine.id)
-        .update(medicine.toJson());
+    await supabase.from('medicines').update(medicine.toJson()).eq('id', medicine.id);
     await fetchMedicines();
   }
 
   Future<void> deleteMedicine(String id) async {
-    await _firestore.collection('medicines').doc(id).delete();
+    await supabase.from('medicines').delete().eq('id', id);
     await fetchMedicines();
   }
 
-  // --- Firestore: تسجيل المستخدمين ---
+  // --- Supabase: تسجيل المستخدمين ---
   Future<void> registerOrLoginUser(String email, String name) async {
-    final userDoc = _firestore.collection('users').doc(email);
-    final doc = await userDoc.get();
-    if (!doc.exists) {
-      await userDoc.set({'email': email, 'name': name});
+    final data = await supabase.from('users').select().eq('email', email);
+    if ((data as List).isEmpty) {
+      await supabase.from('users').insert({'email': email, 'name': name});
     }
-    // يمكنك هنا تحميل بيانات المستخدم أو حفظها في الذاكرة
   }
 
   // Helper methods
   List<Medicine> getMedicinesByCompany(String companyId) {
     return _medicines.where((m) => m.companyId == companyId).toList();
+  }
+
+  // --- Supabase: جلب الأدوية حسب المستودع ---
+  Stream<List<Medicine>> medicinesStreamByWarehouse(String warehouseId) {
+    return supabase
+        .from('medicines')
+        .stream(primaryKey: ['id'])
+        .eq('warehouseId', warehouseId)
+        .map((maps) => maps.map((data) => Medicine.fromJson(data)).toList());
   }
 
   List<Medicine> getMedicinesByWarehouse(String warehouseId) {
@@ -150,14 +141,23 @@ class DataProvider with ChangeNotifier {
 
   void deleteGovernorate(String id) {}
 
-  // --- Firestore: مزامنة الأدوية بشكل فوري ---
-  Stream<List<Medicine>> medicinesStreamByWarehouse(String warehouseId) {
-    return _firestore
-        .collection('medicines')
-        .where('warehouseId', isEqualTo: warehouseId)
-        .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => Medicine.fromJson(doc.data())).toList());
+  // رفع ملف إلى مستودع (شركات أو غيره) في Supabase Storage
+  Future<String?> uploadFileToCompanyStorage(String filePath, String fileName) async {
+    final fileBytes = await File(filePath).readAsBytes();
+    final response = await Supabase.instance.client.storage
+        .from('companies')
+        .uploadBinary(fileName, fileBytes, fileOptions: const FileOptions(upsert: true));
+    if (response.isNotEmpty) {
+      final publicUrl = Supabase.instance.client.storage.from('companies').getPublicUrl(fileName);
+      return publicUrl;
+    }
+    return null;
+  }
+
+  // جلب جميع الملفات من مستودع "شركات"
+  Future<List<String>> listCompanyFiles() async {
+    final response = await Supabase.instance.client.storage.from('companies').list();
+    return response.map((f) => Supabase.instance.client.storage.from('companies').getPublicUrl(f.name)).toList();
   }
 }
 

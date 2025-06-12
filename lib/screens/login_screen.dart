@@ -11,24 +11,29 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final emailController = TextEditingController();
-  final nameController = TextEditingController();
   bool isLoading = false;
   String? error;
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
 
   Future<void> login() async {
     setState(() { isLoading = true; error = null; });
-    final email = emailController.text.trim();
-    final name = nameController.text.trim();
-    if (email.isEmpty || name.isEmpty) {
-      setState(() { error = 'يرجى إدخال البريد الإلكتروني والاسم'; isLoading = false; });
-      return;
+    try {
+      final name = nameController.text.trim();
+      final email = emailController.text.trim();
+      if (name.isEmpty || email.isEmpty) {
+        setState(() { error = 'يرجى إدخال الاسم والبريد الإلكتروني'; isLoading = false; });
+        return;
+      }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_email', email);
+      await prefs.setString('user_name', name);
+      widget.onLoginSuccess();
+    } catch (e) {
+      setState(() { error = 'فشل تسجيل الدخول: $e'; });
+    } finally {
+      setState(() { isLoading = false; });
     }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_email', email);
-    await prefs.setString('user_name', name);
-    widget.onLoginSuccess();
-    setState(() { isLoading = false; });
   }
 
   @override
@@ -47,29 +52,37 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               TextField(
-                controller: emailController,
-                decoration: InputDecoration(labelText: 'البريد الإلكتروني',),
-                textAlign: TextAlign.right,
-              ),
-              TextField(
                 controller: nameController,
-                decoration: InputDecoration(labelText: 'الاسم',),
-                textAlign: TextAlign.right,
+                decoration: const InputDecoration(
+                  labelText: 'الاسم',
+                  border: OutlineInputBorder(),
+                ),
               ),
-              if (error != null) Text(error!, style: TextStyle(color: Colors.red)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: emailController,
+                decoration: const InputDecoration(
+                  labelText: 'البريد الإلكتروني',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 24),
+              if (error != null) Text(error!, style: const TextStyle(color: Colors.red)),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: isLoading ? null : login,
+                child: isLoading
+                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('تسجيل الدخول', style: TextStyle(fontSize: 18)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryGreen,
+                  foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 50),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(25),
                   ),
-                ),
-                child: isLoading ? const CircularProgressIndicator(color: Colors.white,) : const Text(
-                  'دخول',
-                  style: TextStyle(fontSize: 18, color: Colors.white),
+                  textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                  elevation: 2,
                 ),
               ),
             ],

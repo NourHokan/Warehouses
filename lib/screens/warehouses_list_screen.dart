@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models/warehouse.dart';
 import '../providers/data_provider.dart';
 import '../providers/user_provider.dart';
-import '../services/user_change_manager.dart';
 import '../theme/app_colors.dart';
 import 'categories_screen.dart';
-import 'auth_gate.dart';
 
 class WarehousesListScreen extends StatefulWidget {
   final String? governorateId;
@@ -344,11 +341,11 @@ class _WarehousesListScreenState extends State<WarehousesListScreen> {
   Widget build(BuildContext context) {
     final dataProvider = Provider.of<DataProvider>(context);
     final userProvider = Provider.of<UserProvider>(context);
-    final canAdd = userProvider.currentUser != null;
     // تصفية المستودعات حسب المحافظة إذا تم تمرير governorateId
-    final warehouses = widget.governorateId == null
-        ? dataProvider.warehouses
-        : dataProvider.getWarehousesByGovernorate(widget.governorateId!);
+    // final warehouses = widget.governorateId == null
+    //     ? dataProvider.warehouses
+    //     : dataProvider.getWarehousesByGovernorate(widget.governorateId!);
+    // لم يعد هناك حاجة لهذا المتغير، حيث يتم جلب المستودعات من StreamBuilder مباشرة
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -363,31 +360,20 @@ class _WarehousesListScreenState extends State<WarehousesListScreen> {
         backgroundColor: AppColors.primaryGreen,
         centerTitle: true,
         actions: [
-          if (userProvider.currentUser == null)
-            IconButton(
-              icon: const Icon(Icons.login),
-              tooltip: 'تسجيل الدخول',
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const AuthGate()),
-                );
-              },
-            ),
-          if (_canEditWarehouses(userProvider.currentUser?.email))
-            IconButton(
-              icon: const Icon(Icons.add),
-              tooltip: 'إضافة مستودع جديد',
-              onPressed: () => _showAddWarehouseDialog(context),
-            ),
+          // إظهار زر إضافة مستودع للجميع
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: 'إضافة مستودع جديد',
+            onPressed: () => _showAddWarehouseDialog(context),
+          ),
           IconButton(
             icon: const Icon(Icons.search),
             tooltip: 'بحث عن مستودع',
             onPressed: () async {
-              final result = await showSearch<Warehouse?>(
+              showSearch<Warehouse?>(
                 context: context,
                 delegate: WarehouseSearchDelegate(dataProvider.warehouses),
               );
-              // يمكنك هنا التعامل مع النتيجة إذا أردت
             },
           ),
         ],
@@ -416,22 +402,20 @@ class _WarehousesListScreenState extends State<WarehousesListScreen> {
                 children: [
                   const Text(
                     'لا توجد مستودعات',
-                    style:
-                        TextStyle(fontSize: 18, color: AppColors.textSecondary),
+                    style: TextStyle(fontSize: 18, color: AppColors.textSecondary),
                   ),
-                  if (canAdd)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 24),
-                      child: ElevatedButton.icon(
-                        onPressed: () => _showAddWarehouseDialog(context),
-                        icon: const Icon(Icons.add),
-                        label: const Text('إضافة مستودع جديد'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryGreen,
-                          foregroundColor: Colors.white,
-                        ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 24),
+                    child: ElevatedButton.icon(
+                      onPressed: () => _showAddWarehouseDialog(context),
+                      icon: const Icon(Icons.add),
+                      label: const Text('إضافة مستودع جديد'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryGreen,
+                        foregroundColor: Colors.white,
                       ),
                     ),
+                  ),
                 ],
               ),
             );

@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
-// ignore: depend_on_referenced_packages
-import 'package:firebase_core/firebase_core.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'theme/app_colors.dart';
 import 'providers/user_provider.dart';
 import 'providers/data_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'firebase_options.dart';
 import 'screens/governorates_screen.dart';
 import 'screens/warehouses_list_screen.dart';
 // import 'screens/categories_screen.dart'; // لم نعد نستخدمها في routes
 import 'screens/welcome_screen.dart';
+import 'screens/auth_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
+  await Supabase.initialize(
+    url: 'https://zkpwdpvqflnfkrwskdan.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InprcHdkcHZxZmxuZmtyd3NrZGFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk1NTgyOTgsImV4cCI6MjA2NTEzNDI5OH0.5xAECKxede723YdPsBWxV4sxwfX11BPkKEMccnNuMtY',
   );
   runApp(const MyApp());
 }
@@ -68,8 +68,9 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        home: WelcomeScreen(),
+        home: const AuthGate(),
         routes: {
+          '/welcome': (context) => const WelcomeScreen(),
           '/governorates': (context) => GovernoratesScreen(),
           '/warehouses': (context) => WarehousesListScreen(),
           // '/categories': (context) => CategoriesScreen(warehouseId: ''), // حذف هذا المسار

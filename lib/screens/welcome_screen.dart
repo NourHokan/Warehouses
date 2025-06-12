@@ -41,14 +41,17 @@ class WelcomeScreen extends StatelessWidget {
               const SizedBox(height: 20),
               // وصف التطبيق
               const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 40),
+                padding: EdgeInsets.symmetric(horizontal: 24),
                 child: Text(
                   'منصة متكاملة لإدارة مستودعات الأدوية في سوريا',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 18,
-                    color: AppColors.textSecondary, // تأكد من أن AppColors.textSecondary معرف
+                    color: AppColors.textSecondary,
+                    height: 1.6,
                   ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               const SizedBox(height: 60),
